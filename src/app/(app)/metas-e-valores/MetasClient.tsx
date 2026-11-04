@@ -26,7 +26,7 @@ export type MetaRow = {
   transferenciasSaidaDetalhe: { unidadeNome: string; valor: number; data: string | null; aprovadoPorNome: string | null }[];
   verbaExtraDetalhe: { motivo: string; valor: number; data: string | null; analisadoPorNome: string | null }[];
   reservadoDetalhe: { servico: string; valor: number; status: string; data: string | null }[];
-  planejamentoDetalhe: { tipoNome: string; valor: number; data: string | null }[];
+  planejamentoDetalhe: { tipoNome: string; valor: number; status: string; data: string | null }[];
   observacoes: string | null;
 };
 
@@ -80,6 +80,11 @@ const STATUS_RESERVADO_LABEL: Record<string, string> = {
   PENDENTE: "pendente",
   PRE_APROVADO: "pré-aprovado, aguardando regional",
   APROVADO: "aprovado, aguardando pagamento",
+};
+
+const STATUS_PLANEJAMENTO_RESERVADO_LABEL: Record<string, string> = {
+  PENDENTE: "reservado, aguardando aprovação",
+  APROVADO: "aprovado, aguardando execução",
 };
 
 function estourou(linha: MetaRow): boolean {
@@ -330,11 +335,11 @@ export function MetasClient({
                 <p className="shrink-0 text-navy">{formatMoeda(drawer.linha.verbaOrcada)}</p>
               </div>
               <div className="flex items-center justify-between">
-                <p className="text-navy">(−) Realizado (pedidos pagos)</p>
+                <p className="text-navy">(−) Realizado (pedidos pagos + planejamento realizado)</p>
                 <p className="text-navy">{formatMoeda(drawer.linha.realizado)}</p>
               </div>
               <div className="flex items-center justify-between">
-                <p className="text-navy">(−) Reservado (pedidos pendentes/aprovados + planejamento aprovado)</p>
+                <p className="text-navy">(−) Reservado (pedidos pendentes/aprovados + planejamento ainda não realizado)</p>
                 <p className="text-navy">{formatMoeda(drawer.linha.reservado)}</p>
               </div>
             </div>
@@ -360,16 +365,21 @@ export function MetasClient({
             </div>
 
             <div className="space-y-3 border-t border-border pt-4">
-              <p className="font-medium text-navy">Planejamento aprovado (reserva o valor)</p>
+              <p className="font-medium text-navy">Planejamento que já reserva esse saldo</p>
               {drawer.linha.planejamentoDetalhe.length === 0 ? (
                 <p className="text-muted">Nenhum</p>
               ) : (
                 drawer.linha.planejamentoDetalhe.map((p, i) => (
                   <div key={i} className="flex items-start justify-between gap-3">
-                    <p className="text-muted">
-                      {p.tipoNome}
-                      {p.data ? ` (${formatDataBr(p.data)})` : ""}
-                    </p>
+                    <div>
+                      <p className="text-muted">
+                        {p.tipoNome}
+                        {p.data ? ` (${formatDataBr(p.data)})` : ""}
+                      </p>
+                      <p className="text-muted">
+                        {STATUS_PLANEJAMENTO_RESERVADO_LABEL[p.status] ?? p.status.toLowerCase()}
+                      </p>
+                    </div>
                     <p className="shrink-0 text-navy">−{formatMoeda(p.valor)}</p>
                   </div>
                 ))

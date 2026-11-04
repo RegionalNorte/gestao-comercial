@@ -11,6 +11,7 @@ import {
   criarPlanejamento,
   decidirPlanejamentoArea,
   decidirPlanejamentoRegional,
+  marcarPlanejamentoRealizado,
   criarTipoPlanejamento,
   alternarAtivoTipoPlanejamento,
 } from "./actions";
@@ -33,6 +34,8 @@ export type PlanejamentoRow = {
   decisaoRegionalEm: string | null;
   solicitadoPorNome: string;
   dataSolicitacao: string;
+  realizado: boolean;
+  podeMarcarRealizado: boolean;
 };
 
 export type TipoPlanejamentoRow = { id: string; nome: string; ativo: boolean };
@@ -94,9 +97,12 @@ export function PlanejamentoClient({
 }) {
   const router = useRouter();
   const [drawer, setDrawer] = useState<Drawer>(null);
+  const [realizandoId, setRealizandoId] = useState<string | null>(null);
+  const [erroRealizar, setErroRealizar] = useState<string | null>(null);
 
   function closeDrawer() {
     setDrawer(null);
+    setErroRealizar(null);
   }
 
   function handleSuccess() {
@@ -110,6 +116,19 @@ export function PlanejamentoClient({
 
   function handleAlternarAtivo(tipoId: string) {
     alternarAtivoTipoPlanejamento(tipoId).then(() => router.refresh());
+  }
+
+  function handleMarcarRealizado(planejamentoId: string) {
+    setRealizandoId(planejamentoId);
+    setErroRealizar(null);
+    marcarPlanejamentoRealizado(planejamentoId).then((res) => {
+      setRealizandoId(null);
+      if (res.error) {
+        setErroRealizar(res.error);
+      } else {
+        router.refresh();
+      }
+    });
   }
 
   return (
@@ -193,11 +212,20 @@ export function PlanejamentoClient({
                     </td>
                     <td className="px-5 py-2.5 text-navy">
                       <StatusBadge status={linha.statusGeral} />
+                      {linha.realizado ? (
+                        <span className="ml-2 inline-flex items-center gap-1.5 text-cyan-deep">
+                          <span className="h-1.5 w-1.5 rounded-full bg-cyan-deep" />
+                          Realizado
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-5 py-2.5 text-right">
                       <button
                         type="button"
-                        onClick={() => setDrawer({ type: "detalhe", linha })}
+                        onClick={() => {
+                          setErroRealizar(null);
+                          setDrawer({ type: "detalhe", linha });
+                        }}
                         className="text-cyan-deep hover:underline"
                       >
                         {(podeDecidirArea && linha.decisaoAreaStatus === "PENDENTE" && linha.statusGeral === "PENDENTE") ||
@@ -277,7 +305,38 @@ export function PlanejamentoClient({
                 <span className="font-medium text-navy">Status geral</span>
                 <StatusBadge status={drawer.linha.statusGeral} />
               </div>
+
+              {drawer.linha.realizado ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-navy">Execução</span>
+                  <span className="inline-flex items-center gap-1.5 text-cyan-deep">
+                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-deep" />
+                    Realizado
+                  </span>
+                </div>
+              ) : null}
             </div>
+
+            {drawer.linha.podeMarcarRealizado ? (
+              <div className="space-y-2">
+                <p className="text-[0.8125rem] text-muted">
+                  Já aconteceu? Marque como realizado para contar como gasto de fato da unidade.
+                </p>
+                {erroRealizar ? (
+                  <p role="alert" className="text-sm text-error">
+                    {erroRealizar}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={realizandoId === drawer.linha.id}
+                  onClick={() => handleMarcarRealizado(drawer.linha.id)}
+                  className="rounded-md bg-navy px-4 py-2.5 text-[0.9375rem] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  Marcar como realizado
+                </button>
+              </div>
+            ) : null}
 
             {podeDecidirArea && drawer.linha.decisaoAreaStatus === "PENDENTE" && drawer.linha.statusGeral === "PENDENTE" ? (
               <DecisaoPlanejamentoForm

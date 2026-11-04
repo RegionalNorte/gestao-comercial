@@ -56,44 +56,66 @@ export default async function MetasEValoresPage({
   const { ciclo: cicloParam } = await searchParams;
   const cicloSelecionado = ciclos.find((c) => c.id === cicloParam) ?? ciclos[0] ?? null;
 
-  const [metas, pedidosPagos, pedidosReservados, planejamentosAprovados, transferenciasAprovadas, verbaExtraAprovada] =
-    cicloSelecionado
-      ? await Promise.all([
-          prisma.meta.findMany({
-            where: { cicloId: cicloSelecionado.id },
-            include: { fornecedor: true, atualizadoPor: true },
-          }),
-          prisma.pedido.groupBy({
-            by: ["unidadeId"],
-            where: { cicloId: cicloSelecionado.id, status: "PAGO" },
-            _sum: { valorBruto: true },
-          }),
-          // Pedido pendente/aprovado já reserva saldo (ver calcularSaldoDisponivel em
-          // lib/saldo.ts) — precisa aparecer no detalhamento pra explicar por que o saldo
-          // caiu antes mesmo de qualquer pedido ser pago.
-          prisma.pedido.findMany({
-            where: { cicloId: cicloSelecionado.id, status: { in: ["PENDENTE", "PRE_APROVADO", "APROVADO"] } },
-            orderBy: { dataSolicitacao: "desc" },
-          }),
-          // Planejamento totalmente aprovado (Área + Regional) também reserva o valor
-          // preventivamente, antes de virar pedido de fato.
-          prisma.planejamento.findMany({
-            where: { cicloId: cicloSelecionado.id, statusGeral: "APROVADO" },
-            include: { tipoPlanejamento: true },
-            orderBy: { dataSolicitacao: "desc" },
-          }),
-          prisma.transferenciaSaldo.findMany({
-            where: { cicloId: cicloSelecionado.id, status: "APROVADA" },
-            include: { unidadeOrigem: true, unidadeDestino: true, aprovadoPor: true },
-          }),
-          prisma.solicitacaoVerbaExtra.findMany({
-            where: { cicloId: cicloSelecionado.id, status: "APROVADO" },
-            include: { unidade: true, analisadoPor: true },
-          }),
-        ])
-      : [[], [], [], [], [], []];
+  const [
+    metas,
+    pedidosPagos,
+    pedidosReservados,
+    planejamentosReservados,
+    planejamentosRealizados,
+    transferenciasAprovadas,
+    verbaExtraAprovada,
+  ] = cicloSelecionado
+    ? await Promise.all([
+        prisma.meta.findMany({
+          where: { cicloId: cicloSelecionado.id },
+          include: { fornecedor: true, atualizadoPor: true },
+        }),
+        prisma.pedido.groupBy({
+          by: ["unidadeId"],
+          where: { cicloId: cicloSelecionado.id, status: "PAGO" },
+          _sum: { valorBruto: true },
+        }),
+        // Pedido pendente/aprovado já reserva saldo (ver calcularSaldoDisponivel em
+        // lib/saldo.ts) — precisa aparecer no detalhamento pra explicar por que o saldo
+        // caiu antes mesmo de qualquer pedido ser pago.
+        prisma.pedido.findMany({
+          where: { cicloId: cicloSelecionado.id, status: { in: ["PENDENTE", "PRE_APROVADO", "APROVADO"] } },
+          orderBy: { dataSolicitacao: "desc" },
+        }),
+        // Planejamento ainda não realizado reserva o valor desde PENDENTE (mesma lógica do
+        // pedido pendente acima) até ser marcado como realizado — ver lib/saldo.ts.
+        prisma.planejamento.findMany({
+          where: {
+            cicloId: cicloSelecionado.id,
+            statusGeral: { in: ["PENDENTE", "APROVADO"] },
+            realizado: false,
+          },
+          include: { tipoPlanejamento: true },
+          orderBy: { dataSolicitacao: "desc" },
+        }),
+        // Planejamento marcado como realizado conta como gasto de fato da unidade, não
+        // mais como reserva (ver marcarPlanejamentoRealizado em planejamento/actions.ts).
+        prisma.planejamento.groupBy({
+          by: ["unidadeId"],
+          where: { cicloId: cicloSelecionado.id, realizado: true },
+          _sum: { valor: true },
+        }),
+        prisma.transferenciaSaldo.findMany({
+          where: { cicloId: cicloSelecionado.id, status: "APROVADA" },
+          include: { unidadeOrigem: true, unidadeDestino: true, aprovadoPor: true },
+        }),
+        prisma.solicitacaoVerbaExtra.findMany({
+          where: { cicloId: cicloSelecionado.id, status: "APROVADO" },
+          include: { unidade: true, analisadoPor: true },
+        }),
+      ])
+    : [[], [], [], [], [], [], []];
   const metasPorUnidade = new Map(metas.map((m) => [m.unidadeId, m]));
   const realizadoPorUnidade = new Map(pedidosPagos.map((p) => [p.unidadeId, Number(p._sum.valorBruto ?? 0)]));
+  for (const p of planejamentosRealizados) {
+    const atual = realizadoPorUnidade.get(p.unidadeId) ?? 0;
+    realizadoPorUnidade.set(p.unidadeId, atual + Number(p._sum.valor ?? 0));
+  }
 
   const reservadoDetalhePorUnidade = new Map<
     string,
@@ -110,10 +132,18 @@ export default async function MetasEValoresPage({
     reservadoDetalhePorUnidade.set(p.unidadeId, lista);
   }
 
-  const planejamentoDetalhePorUnidade = new Map<string, { tipoNome: string; valor: number; data: string | null }[]>();
-  for (const p of planejamentosAprovados) {
+  const planejamentoDetalhePorUnidade = new Map<
+    string,
+    { tipoNome: string; valor: number; status: string; data: string | null }[]
+  >();
+  for (const p of planejamentosReservados) {
     const lista = planejamentoDetalhePorUnidade.get(p.unidadeId) ?? [];
-    lista.push({ tipoNome: p.tipoPlanejamento.nome, valor: Number(p.valor), data: toIso(p.dataSolicitacao) });
+    lista.push({
+      tipoNome: p.tipoPlanejamento.nome,
+      valor: Number(p.valor),
+      status: p.statusGeral,
+      data: toIso(p.dataSolicitacao),
+    });
     planejamentoDetalhePorUnidade.set(p.unidadeId, lista);
   }
 

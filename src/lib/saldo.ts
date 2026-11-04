@@ -6,8 +6,9 @@ import { prisma } from "./prisma";
 // conseguiriam pedir além do orçamento e só estourar na hora do pagamento), menos o que
 // saiu em transferências aprovadas, mais o que entrou em transferências aprovadas, mais
 // a verba extra aprovada (fora do orçamento original, mas que já soma ao saldo gastável
-// — ver SolicitacaoVerbaExtra), menos planejamentos totalmente aprovados (reserva
-// preventiva de campanha/ação antes de virar pedido — ver Planejamento.statusGeral).
+// — ver SolicitacaoVerbaExtra), menos planejamentos ainda não rejeitados (reserva
+// preventiva de campanha/ação antes de virar pedido — já reserva desde PENDENTE, pelo
+// mesmo motivo do pedido pendente acima; ver Planejamento.statusGeral).
 // Usada tanto para validar novos pedidos/transferências quanto para exibir o saldo em
 // Metas e Valores — precisa ser a mesma conta em todo lugar.
 export async function calcularSaldoDisponivel(unidadeId: string, cicloId: string): Promise<number> {
@@ -32,7 +33,7 @@ export async function calcularSaldoDisponivel(unidadeId: string, cicloId: string
       _sum: { valor: true },
     }),
     prisma.planejamento.aggregate({
-      where: { unidadeId, cicloId, statusGeral: "APROVADO" },
+      where: { unidadeId, cicloId, statusGeral: { in: ["PENDENTE", "APROVADO"] } },
       _sum: { valor: true },
     }),
   ]);

@@ -173,6 +173,42 @@ export async function criarTipoPlanejamento(_prevState: FormState, formData: For
   revalidatePath("/planejamento");
 }
 
+// Confirma que a campanha/ação realmente aconteceu — só quem solicitou o planejamento
+// pode marcar (ele que sabe se de fato ocorreu), só depois de totalmente aprovado, e só
+// dentro do período do ciclo (não dá pra "realizar" uma campanha antes do ciclo começar).
+// Vira gasto de fato da unidade em Metas e Valores (sai de "reservado" e entra em "realizado").
+export async function marcarPlanejamentoRealizado(planejamentoId: string): Promise<{ error?: string }> {
+  const session = await requirePerfil(["ADMIN", "GERENTE_UNIDADE", "GERENTE_COMERCIAL"]);
+
+  const planejamento = await prisma.planejamento.findUnique({
+    where: { id: planejamentoId },
+    include: { ciclo: true },
+  });
+  if (!planejamento) return { error: "Planejamento não encontrado." };
+
+  if (session.perfil !== "ADMIN" && planejamento.solicitadoPorId !== session.sub) {
+    return { error: "Só quem solicitou o planejamento pode marcar como realizado." };
+  }
+  if (planejamento.statusGeral !== "APROVADO") {
+    return { error: "Só é possível marcar como realizado um planejamento totalmente aprovado." };
+  }
+  if (planejamento.realizado) {
+    return { error: "Esse planejamento já foi marcado como realizado." };
+  }
+  if (!planejamento.ciclo.dataInicio || new Date() < planejamento.ciclo.dataInicio) {
+    return { error: "Só é possível marcar como realizado quando o ciclo já tiver começado." };
+  }
+
+  await prisma.planejamento.update({
+    where: { id: planejamentoId },
+    data: { realizado: true, realizadoPorId: session.sub, realizadoEm: new Date() },
+  });
+
+  revalidatePath("/planejamento");
+  revalidatePath("/metas-e-valores");
+  return {};
+}
+
 export async function alternarAtivoTipoPlanejamento(id: string): Promise<{ error?: string }> {
   await requirePerfil(["ADMIN", "ANALISTA"]);
   const tipo = await prisma.tipoPlanejamento.findUnique({ where: { id } });

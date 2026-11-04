@@ -64,6 +64,10 @@ export default async function PlanejamentoPage({
       })
     : [];
 
+  // Só pode marcar como realizado um planejamento aprovado, solicitado pelo próprio
+  // usuário (Admin pode qualquer um), e com o ciclo já tendo começado.
+  const cicloJaComecou = !!cicloSelecionado?.dataInicio && new Date() >= cicloSelecionado.dataInicio;
+
   const linhas: PlanejamentoRow[] = planejamentosRaw.map((p) => ({
     id: p.id,
     areaNome: p.unidade.area.nome,
@@ -80,6 +84,12 @@ export default async function PlanejamentoPage({
     decisaoRegionalEm: toIso(p.decisaoRegionalEm),
     solicitadoPorNome: p.solicitadoPor.nome,
     dataSolicitacao: toIso(p.dataSolicitacao)!,
+    realizado: p.realizado,
+    podeMarcarRealizado:
+      !p.realizado &&
+      p.statusGeral === "APROVADO" &&
+      cicloJaComecou &&
+      (session.perfil === "ADMIN" || p.solicitadoPorId === session.sub),
   }));
 
   let unidadesParaCriar: { id: string; nome: string; areaNome: string }[] = [];

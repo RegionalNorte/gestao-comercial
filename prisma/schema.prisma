@@ -150,6 +150,7 @@ model Usuario {
   planejamentosSolicitados     Planejamento[]          @relation("PlanejamentoSolicitante")
   planejamentosDecisaoArea     Planejamento[]          @relation("PlanejamentoDecisaoArea")
   planejamentosDecisaoRegional Planejamento[]          @relation("PlanejamentoDecisaoRegional")
+  planejamentosRealizados      Planejamento[]          @relation("PlanejamentoRealizadoPor")
   reembolsosKmSolicitados      ReembolsoKm[]           @relation("ReembolsoKmConsultor")
   reembolsoKmEventos           ReembolsoKmEvento[]
 
@@ -378,6 +379,15 @@ model Planejamento {
   decisaoRegionalPorId  String?       @map("decisao_regional_por_id")
   decisaoRegionalPor    Usuario?      @relation("PlanejamentoDecisaoRegional", fields: [decisaoRegionalPorId], references: [id])
   decisaoRegionalEm     DateTime?     @map("decisao_regional_em")
+
+  // Mesmo totalmente aprovado, o planejamento é só uma reserva (ver calcularSaldoDisponivel)
+  // — ele só vira "realizado" (conta como gasto de fato da unidade) quando quem solicitou
+  // confirma que a campanha/ação aconteceu, o que só pode acontecer dentro do período do
+  // ciclo (Ciclo.dataInicio/dataFim). Ver marcarPlanejamentoRealizado em actions.ts.
+  realizado      Boolean   @default(false)
+  realizadoPorId String?   @map("realizado_por_id")
+  realizadoPor   Usuario?  @relation("PlanejamentoRealizadoPor", fields: [realizadoPorId], references: [id])
+  realizadoEm    DateTime? @map("realizado_em")
 
   dataSolicitacao DateTime @default(now()) @map("data_solicitacao")
   observacao      String?

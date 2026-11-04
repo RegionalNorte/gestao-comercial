@@ -7,7 +7,9 @@ export default defineConfig({
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",
   },
+  // Migrations usam a conexão direta (session pooler) — o transaction pooler
+  // (DATABASE_URL, usado em runtime pela aplicação) não suporta DDL/advisory locks.
   datasource: {
-    url: env("DATABASE_URL"),
+    url: env("DIRECT_URL"),
   },
 });

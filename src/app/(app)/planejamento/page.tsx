@@ -64,10 +64,6 @@ export default async function PlanejamentoPage({
       })
     : [];
 
-  // Só pode marcar como realizado um planejamento aprovado, solicitado pelo próprio
-  // usuário (Admin pode qualquer um), e com o ciclo já tendo começado.
-  const cicloJaComecou = !!cicloSelecionado?.dataInicio && new Date() >= cicloSelecionado.dataInicio;
-
   const linhas: PlanejamentoRow[] = planejamentosRaw.map((p) => ({
     id: p.id,
     areaNome: p.unidade.area.nome,
@@ -85,11 +81,11 @@ export default async function PlanejamentoPage({
     solicitadoPorNome: p.solicitadoPor.nome,
     dataSolicitacao: toIso(p.dataSolicitacao)!,
     realizado: p.realizado,
+    // O botão aparece sempre que aprovado e ainda não realizado (mesmo fora do período do
+    // ciclo) — quem clicar fora do período recebe o erro da própria action (ver
+    // marcarPlanejamentoRealizado em actions.ts), em vez de simplesmente não ver o botão.
     podeMarcarRealizado:
-      !p.realizado &&
-      p.statusGeral === "APROVADO" &&
-      cicloJaComecou &&
-      (session.perfil === "ADMIN" || p.solicitadoPorId === session.sub),
+      !p.realizado && p.statusGeral === "APROVADO" && (session.perfil === "ADMIN" || p.solicitadoPorId === session.sub),
   }));
 
   let unidadesParaCriar: { id: string; nome: string; areaNome: string }[] = [];

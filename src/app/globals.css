@@ -1,26 +1,94 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Paleta de marca Gestão V&M */
+  --color-navy: #0b3040;
+  --color-navy-ink: #0b3040;
+  --color-cyan: #00b0f0;
+  --color-cyan-deep: #0089bf;
+  --color-green: #92d050;
+  --color-surface: #ffffff;
+  --color-muted: #5b6b72;
+  --color-border: #d8dfe1;
+  --color-error: #c0392b;
+
+  --background: var(--color-surface);
+  --foreground: var(--color-navy-ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-navy: var(--color-navy);
+  --color-cyan: var(--color-cyan);
+  --color-cyan-deep: var(--color-cyan-deep);
+  --color-green: var(--color-green);
+  --color-muted: var(--color-muted);
+  --color-border: var(--color-border);
+  --color-error: var(--color-error);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-body);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), Arial, Helvetica, sans-serif;
+}
+
+/* Escala o sistema inteiro para 80%, igual ao zoom do navegador que o cliente preferiu.
+   Usamos font-size (não `zoom`) porque `zoom` desalinha alturas baseadas em vh
+   (ex.: min-h-screen), deixando a sidebar mais curta que a tela. */
+html {
+  font-size: 80%;
+}
+
+/* O reset do Tailwind deixa <button> com cursor "default", como um controle nativo do SO.
+   Nesta aplicação todo botão age como ação clicável, então o ponteiro precisa indicar isso. */
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* O navegador desenha o anel de foco padrão (azul do sistema) em botões e links,
+   uma cor que não é a nossa. Substituímos por um anel na cor da marca em todo lugar,
+   em vez de deixar cada componente lidar com isso individualmente.
+   (inputs/selects já têm seu próprio anel cyan via classes Tailwind, por isso ficam de fora daqui.) */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--color-cyan);
+  outline-offset: 2px;
+}
+
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Barra de rolagem com a cara do sistema em vez do padrão do navegador/SO. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-muted);
 }

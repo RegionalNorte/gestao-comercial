@@ -1,0 +1,362 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Perfil {
+  ADMIN
+  ANALISTA
+  GERENTE_REGIONAL
+  GERENTE_AREA
+  GERENTE_UNIDADE
+  // Par do Gerente de Unidade: mesma função/visibilidade dentro da unidade (ambos são
+  // "donos" da unidade — Gerente de Unidade tecnicamente é o diretor, Gerente Comercial
+  // o par comercial), então em todo lugar do sistema os dois recebem o mesmo tratamento.
+  GERENTE_COMERCIAL
+}
+
+enum Cluster {
+  P
+  M
+  G
+}
+
+enum TipoVerba {
+  VM
+}
+
+enum StatusPedido {
+  PENDENTE
+  APROVADO
+  REJEITADO
+  PAGO
+}
+
+enum TipoTransferencia {
+  INTRA_AREA
+  ENTRE_AREAS
+}
+
+enum StatusTransferencia {
+  PENDENTE
+  APROVADA
+  NEGADA
+}
+
+enum StatusSolicitacaoExtra {
+  PENDENTE
+  APROVADO
+  REJEITADO
+}
+
+enum StatusDecisao {
+  PENDENTE
+  APROVADO
+  REJEITADO
+}
+
+model Area {
+  id        String        @id @default(uuid())
+  nome      String        @unique
+  unidades  Unidade[]
+  usuarios  UsuarioArea[]
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@map("areas")
+}
+
+model Unidade {
+  id                    String                  @id @default(uuid())
+  nome                  String
+  areaId                String                  @map("area_id")
+  area                  Area                    @relation(fields: [areaId], references: [id])
+  cluster               Cluster?
+  usuarios              UsuarioUnidade[]
+  metas                 Meta[]
+  pedidos               Pedido[]
+  planejamentos         Planejamento[]
+  solicitacoesExtra     SolicitacaoVerbaExtra[]
+  transferenciasOrigem  TransferenciaSaldo[]    @relation("TransferenciaOrigem")
+  transferenciasDestino TransferenciaSaldo[]    @relation("TransferenciaDestino")
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+
+  @@unique([nome, areaId])
+  @@map("unidades")
+}
+
+model Fornecedor {
+  id            String    @id @default(uuid())
+  nome          String    @unique
+  abreviacao    String?
+  codFornecedor String?   @map("cod_fornecedor")
+  contaContabil String?   @map("conta_contabil")
+  tipoVerba     TipoVerba @default(VM) @map("tipo_verba")
+  // Nullable: alguns fornecedores vieram da planilha sem taxa/BV definidos.
+  // O seed loga esses casos em vez de adivinhar o valor — ficam para preenchimento manual.
+  bvPct         Decimal?  @map("bv_pct") @db.Decimal(6, 4)
+  taxaPct       Decimal?  @map("taxa_pct") @db.Decimal(6, 4)
+  pedidos       Pedido[]
+  metas         Meta[]
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("fornecedores")
+}
+
+model Usuario {
+  id        String           @id @default(uuid())
+  nome      String
+  email     String           @unique
+  senhaHash String?          @map("senha_hash")
+  perfil    Perfil
+  unidades  UsuarioUnidade[]
+  areas     UsuarioArea[]
+
+  metasAtualizadas             Meta[]                  @relation("MetaAtualizador")
+  pedidosSolicitados           Pedido[]                @relation("PedidoSolicitante")
+  pedidosAnalisados            Pedido[]                @relation("PedidoAnalista")
+  pedidoEventos                PedidoEvento[]
+  transferenciasSolicitadas    TransferenciaSaldo[]    @relation("TransferenciaSolicitante")
+  transferenciasAprovadas      TransferenciaSaldo[]    @relation("TransferenciaAprovador")
+  solicitacoesExtraCriadas     SolicitacaoVerbaExtra[] @relation("ExtraSolicitante")
+  solicitacoesExtraAnalisadas  SolicitacaoVerbaExtra[] @relation("ExtraAnalista")
+  planejamentosSolicitados     Planejamento[]          @relation("PlanejamentoSolicitante")
+  planejamentosDecisaoArea     Planejamento[]          @relation("PlanejamentoDecisaoArea")
+  planejamentosDecisaoRegional Planejamento[]          @relation("PlanejamentoDecisaoRegional")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("usuarios")
+}
+
+// Vínculo N:N — um Gerente de Unidade pode gerenciar mais de uma unidade
+model UsuarioUnidade {
+  usuarioId String  @map("usuario_id")
+  unidadeId String  @map("unidade_id")
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  unidade   Unidade @relation(fields: [unidadeId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, unidadeId])
+  @@map("usuario_unidades")
+}
+
+// Vínculo N:N — Gerente de Área associado à sua área (Gerente Regional/Analista não precisam de vínculo)
+model UsuarioArea {
+  usuarioId String  @map("usuario_id")
+  areaId    String  @map("area_id")
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  area      Area    @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, areaId])
+  @@map("usuario_areas")
+}
+
+model Ciclo {
+  id         String    @id @default(uuid())
+  nome       String    @unique
+  dataInicio DateTime? @map("data_inicio")
+  dataFim    DateTime? @map("data_fim")
+  status     String?
+
+  metas             Meta[]
+  pedidos           Pedido[]
+  transferencias    TransferenciaSaldo[]
+  solicitacoesExtra SolicitacaoVerbaExtra[]
+  planejamentos     Planejamento[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ciclos")
+}
+
+// Tela "Metas e Valores": o Analista distribui meta/orçamento/CAC por unidade e ciclo, e é
+// AQUI que ele define qual fornecedor atende aquela unidade no ciclo (fornecedorId). O Gerente
+// de Unidade não escolhe fornecedor ao criar um pedido — ele herda o que está definido aqui.
+model Meta {
+  id               String      @id @default(uuid())
+  unidadeId        String      @map("unidade_id")
+  unidade          Unidade     @relation(fields: [unidadeId], references: [id])
+  cicloId          String      @map("ciclo_id")
+  ciclo            Ciclo       @relation(fields: [cicloId], references: [id])
+  fornecedorId     String?     @map("fornecedor_id")
+  fornecedor       Fornecedor? @relation(fields: [fornecedorId], references: [id])
+  metaBuPresencial Int?        @map("meta_bu_presencial")
+  metaBuDigital    Int?        @map("meta_bu_digital")
+  verbaOrcada      Decimal     @map("verba_orcada") @db.Decimal(14, 2)
+  observacoes      String?
+  atualizadoPorId  String?     @map("atualizado_por_id")
+  atualizadoPor    Usuario?    @relation("MetaAtualizador", fields: [atualizadoPorId], references: [id])
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  @@unique([unidadeId, cicloId])
+  @@map("metas")
+}
+
+// Pedido de verba para fornecedor/serviço, feito pelo Gerente de Unidade contra o orçado.
+// status: PENDENTE -> APROVADO/REJEITADO (só Analista decide) -> PAGO (só aqui deduz do saldo).
+// fornecedorId é herdado da Meta da unidade/ciclo (definida pelo Analista) — não é escolhido
+// livremente aqui; é gravado no pedido para manter o histórico mesmo se a Meta mudar depois.
+// cicloId é derivado automaticamente de dataDesejada (o ciclo cujo período cobre essa data),
+// não escolhido manualmente — é essa data que decide de qual ciclo o pedido consome saldo.
+model Pedido {
+  id              String       @id @default(uuid())
+  cicloId         String       @map("ciclo_id")
+  ciclo           Ciclo        @relation(fields: [cicloId], references: [id])
+  unidadeId       String       @map("unidade_id")
+  unidade         Unidade      @relation(fields: [unidadeId], references: [id])
+  fornecedorId    String       @map("fornecedor_id")
+  fornecedor      Fornecedor   @relation(fields: [fornecedorId], references: [id])
+  servico         String
+  dataDesejada    DateTime     @map("data_desejada")
+  // BV incide sobre o líquido; a Taxa incide sobre líquido + BV; o bruto é a soma dos
+  // três. Os %s são herdados do fornecedor configurado na Meta da unidade/ciclo — é esse
+  // bruto que é descontado do orçado da unidade (Meta.verbaOrcada, valor "puro", sem
+  // markup). O Gerente de Unidade não vê esse detalhamento, só se o pedido coube no saldo.
+  valorLiquido    Decimal      @map("valor_liquido") @db.Decimal(14, 2)
+  bvPct           Decimal      @map("bv_pct") @db.Decimal(6, 4)
+  taxaPct         Decimal      @map("taxa_pct") @db.Decimal(6, 4)
+  bv              Decimal      @db.Decimal(14, 2)
+  taxa            Decimal      @db.Decimal(14, 2)
+  valorBruto      Decimal      @map("valor_bruto") @db.Decimal(14, 2)
+  status          StatusPedido @default(PENDENTE)
+  solicitadoPorId String       @map("solicitado_por_id")
+  solicitadoPor   Usuario      @relation("PedidoSolicitante", fields: [solicitadoPorId], references: [id])
+  analisadoPorId  String?      @map("analisado_por_id")
+  analisadoPor    Usuario?     @relation("PedidoAnalista", fields: [analisadoPorId], references: [id])
+  dataSolicitacao DateTime     @default(now()) @map("data_solicitacao")
+  dataAnalise     DateTime?    @map("data_analise")
+  dataPagamento   DateTime?    @map("data_pagamento")
+  comentarios     String?
+  eventos         PedidoEvento[]
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@map("pedidos")
+}
+
+// Histórico append-only: cada passo do fluxo (solicitado, aprovado, rejeitado, pago)
+// vira uma linha própria aqui, já que um pedido pode ser aprovado e depois rejeitado
+// antes do pagamento — os campos analisadoPorId/dataAnalise no Pedido guardam só a
+// última decisão, não dá pra reconstruir a linha do tempo completa a partir deles.
+model PedidoEvento {
+  id         String      @id @default(uuid())
+  pedidoId   String      @map("pedido_id")
+  pedido     Pedido      @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  tipo       StatusPedido
+  usuarioId  String      @map("usuario_id")
+  usuario    Usuario     @relation(fields: [usuarioId], references: [id])
+  comentario String?
+  criadoEm   DateTime    @default(now()) @map("criado_em")
+
+  @@map("pedido_eventos")
+}
+
+// Remanejamento de saldo entre unidades.
+// INTRA_AREA: ação direta do Gerente de Área, já nasce APROVADA (histórico do movimento).
+// ENTRE_AREAS: nasce PENDENTE até o Gerente de Área doador decidir (APROVADA/NEGADA).
+model TransferenciaSaldo {
+  id               String              @id @default(uuid())
+  cicloId          String              @map("ciclo_id")
+  ciclo            Ciclo               @relation(fields: [cicloId], references: [id])
+  unidadeOrigemId  String              @map("unidade_origem_id")
+  unidadeOrigem    Unidade             @relation("TransferenciaOrigem", fields: [unidadeOrigemId], references: [id])
+  unidadeDestinoId String              @map("unidade_destino_id")
+  unidadeDestino   Unidade             @relation("TransferenciaDestino", fields: [unidadeDestinoId], references: [id])
+  valor            Decimal             @db.Decimal(14, 2)
+  tipo             TipoTransferencia
+  status           StatusTransferencia @default(APROVADA)
+  solicitadoPorId  String              @map("solicitado_por_id")
+  solicitadoPor    Usuario             @relation("TransferenciaSolicitante", fields: [solicitadoPorId], references: [id])
+  aprovadoPorId    String?             @map("aprovado_por_id")
+  aprovadoPor      Usuario?            @relation("TransferenciaAprovador", fields: [aprovadoPorId], references: [id])
+  dataSolicitacao  DateTime            @default(now()) @map("data_solicitacao")
+  dataDecisao      DateTime?           @map("data_decisao")
+  observacao       String?
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  @@map("transferencias_saldo")
+}
+
+// Pedido de verba extra fora do orçamento, feito pelo Gerente de Área em nome de uma unidade
+// da sua área (ex.: brindes, festas). Decisão é sempre do Analista. Se aprovado, soma ao saldo
+// da unidade mas deve ser exibido separadamente do orçamento original (ver campo valor).
+model SolicitacaoVerbaExtra {
+  id                 String                 @id @default(uuid())
+  cicloId            String                 @map("ciclo_id")
+  ciclo              Ciclo                  @relation(fields: [cicloId], references: [id])
+  unidadeId          String                 @map("unidade_id")
+  unidade            Unidade                @relation(fields: [unidadeId], references: [id])
+  solicitadoPorId    String                 @map("solicitado_por_id")
+  solicitadoPor      Usuario                @relation("ExtraSolicitante", fields: [solicitadoPorId], references: [id])
+  valor              Decimal                @db.Decimal(14, 2)
+  motivo             String
+  status             StatusSolicitacaoExtra @default(PENDENTE)
+  analisadoPorId     String?                @map("analisado_por_id")
+  analisadoPor       Usuario?               @relation("ExtraAnalista", fields: [analisadoPorId], references: [id])
+  dataSolicitacao    DateTime               @default(now()) @map("data_solicitacao")
+  dataAnalise        DateTime?              @map("data_analise")
+  comentarioAnalista String?                @map("comentario_analista")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+
+  @@map("solicitacoes_verba_extra")
+}
+
+// Catálogo fixo de tipos de planejamento (ex.: ENEM, VIVA ESTÁCIO), mantido por Admin/Analista.
+model TipoPlanejamento {
+  id            String         @id @default(uuid())
+  nome          String         @unique
+  ativo         Boolean        @default(true)
+  planejamentos Planejamento[]
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  @@map("tipos_planejamento")
+}
+
+// Planejamento de campanha/ação sazonal (ex.: ENEM, Viva Estácio), criado pelo Gerente de
+// Unidade para um ciclo (tipicamente o ciclo 2, mas sempre escolhido explicitamente).
+// Precisa da aprovação dos DOIS perfis — Gerente de Área e Gerente Regional — para ficar
+// aprovado (statusGeral); qualquer rejeição de um dos dois já encerra como rejeitado.
+// Quando aprovado, reserva o valor preventivamente no saldo da unidade (antes de virar pedido).
+model Planejamento {
+  id                 String           @id @default(uuid())
+  cicloId            String           @map("ciclo_id")
+  ciclo              Ciclo            @relation(fields: [cicloId], references: [id])
+  unidadeId          String           @map("unidade_id")
+  unidade            Unidade          @relation(fields: [unidadeId], references: [id])
+  tipoPlanejamentoId String           @map("tipo_planejamento_id")
+  tipoPlanejamento   TipoPlanejamento @relation(fields: [tipoPlanejamentoId], references: [id])
+  valor              Decimal          @db.Decimal(14, 2)
+  solicitadoPorId    String           @map("solicitado_por_id")
+  solicitadoPor      Usuario          @relation("PlanejamentoSolicitante", fields: [solicitadoPorId], references: [id])
+
+  statusGeral StatusDecisao @default(PENDENTE) @map("status_geral")
+
+  decisaoAreaStatus StatusDecisao @default(PENDENTE) @map("decisao_area_status")
+  decisaoAreaPorId  String?       @map("decisao_area_por_id")
+  decisaoAreaPor    Usuario?      @relation("PlanejamentoDecisaoArea", fields: [decisaoAreaPorId], references: [id])
+  decisaoAreaEm     DateTime?     @map("decisao_area_em")
+
+  decisaoRegionalStatus StatusDecisao @default(PENDENTE) @map("decisao_regional_status")
+  decisaoRegionalPorId  String?       @map("decisao_regional_por_id")
+  decisaoRegionalPor    Usuario?      @relation("PlanejamentoDecisaoRegional", fields: [decisaoRegionalPorId], references: [id])
+  decisaoRegionalEm     DateTime?     @map("decisao_regional_em")
+
+  dataSolicitacao DateTime @default(now()) @map("data_solicitacao")
+  observacao      String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("planejamentos")
+}

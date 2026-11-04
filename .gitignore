@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma generated client (regenerado via `npx prisma generate`)
+/src/generated/prisma
+
+# estado local do Claude Code (não é parte do projeto)
+.claude/

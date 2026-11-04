@@ -65,7 +65,21 @@ export function AppShell({
         }`}
       >
         <div className="flex items-center gap-2 px-4 py-5">
-          <div className="h-[0.1875rem] w-6 shrink-0 bg-green" />
+          <svg viewBox="0 0 32 32" className="h-7 w-7 shrink-0" aria-hidden="true">
+            <defs>
+              <linearGradient id="logoC" x1="16" y1="4" x2="16" y2="28" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stopColor="#00b0f0" />
+                <stop offset="1" stopColor="#92d050" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M 24.19 21.74 A 10 10 0 1 1 24.19 10.26"
+              fill="none"
+              stroke="url(#logoC)"
+              strokeWidth={7}
+              strokeLinecap="round"
+            />
+          </svg>
           {!collapsed && (
             <span className="font-display truncate text-[1.0625rem] font-semibold text-white">
               Gestão Comercial

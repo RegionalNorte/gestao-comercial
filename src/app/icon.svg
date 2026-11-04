@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="7" fill="#0b3040" />
+  <defs>
+    <linearGradient id="c-grad" x1="16" y1="4" x2="16" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00b0f0" />
+      <stop offset="1" stop-color="#92d050" />
+    </linearGradient>
+  </defs>
+  <path
+    d="M 24.19 21.74 A 10 10 0 1 1 24.19 10.26"
+    fill="none"
+    stroke="url(#c-grad)"
+    stroke-width="7"
+    stroke-linecap="round"
+  />
+</svg>

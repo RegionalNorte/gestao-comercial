@@ -175,23 +175,19 @@ export async function criarPedido(_prevState: FormState, formData: FormData): Pr
   revalidatePath("/pedidos");
 }
 
-export async function decidirPedido(
-  pedidoId: string,
-  _prevState: FormState,
-  formData: FormData,
-): Promise<FormState> {
-  const session = await requirePerfil(["ADMIN", "ANALISTA", "GERENTE_REGIONAL", "GERENTE_AREA"]);
+// Gerente de Área: pré-aprova ou rejeita (só pedidos das unidades da própria área).
+export async function decidirArea(pedidoId: string, _prevState: FormState, formData: FormData): Promise<FormState> {
+  const session = await requirePerfil(["ADMIN", "GERENTE_AREA"]);
   const values = echoValues(formData);
 
   const decisao = String(formData.get("decisao") ?? "");
-  if (decisao !== "APROVADO" && decisao !== "REJEITADO") {
+  if (decisao !== "PRE_APROVADO" && decisao !== "REJEITADO") {
     return { error: "Decisão inválida.", values };
   }
 
   const pedido = await prisma.pedido.findUnique({ where: { id: pedidoId }, include: { unidade: true } });
   if (!pedido) return { error: "Pedido não encontrado.", values };
 
-  // Gerente de Área só decide pedidos das unidades da própria área.
   if (session.perfil === "GERENTE_AREA") {
     const areasDoUsuario = await prisma.usuarioArea.findMany({ where: { usuarioId: session.sub } });
     const areaIds = areasDoUsuario.map((a) => a.areaId);
@@ -200,14 +196,84 @@ export async function decidirPedido(
     }
   }
 
-  // Depois de aprovado (e antes de pago), Analista/Gerente Regional ainda têm autonomia
-  // pra rejeitar o pedido como checagem final — mas não dá pra aprovar de novo algo já
-  // aprovado, nem decidir um pedido já pago ou já rejeitado.
-  if (pedido.status === "PAGO" || pedido.status === "REJEITADO") {
-    return { error: "Esse pedido já foi pago ou rejeitado e não pode mais ser alterado.", values };
+  if (pedido.status !== "PENDENTE") {
+    return { error: "Esse pedido já foi decidido nessa etapa.", values };
   }
-  if (pedido.status === "APROVADO" && decisao !== "REJEITADO") {
-    return { error: "Um pedido já aprovado só pode ser rejeitado, não aprovado de novo.", values };
+
+  const comentarios = String(formData.get("comentarios") ?? "").trim() || null;
+  if (decisao === "REJEITADO" && !comentarios) {
+    return { error: "Informe uma justificativa nas observações para rejeitar o pedido.", values };
+  }
+
+  await prisma.$transaction([
+    prisma.pedido.update({
+      where: { id: pedidoId },
+      data: { status: decisao as StatusPedido, analisadoPorId: session.sub, dataAnalise: new Date(), comentarios },
+    }),
+    prisma.pedidoEvento.create({
+      data: { pedidoId, tipo: decisao as StatusPedido, usuarioId: session.sub, comentario: comentarios },
+    }),
+  ]);
+
+  revalidatePath("/pedidos");
+}
+
+// Gerente Regional: aprova ou rejeita, depois da pré-aprovação da Área.
+export async function decidirRegional(
+  pedidoId: string,
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const session = await requirePerfil(["ADMIN", "GERENTE_REGIONAL"]);
+  const values = echoValues(formData);
+
+  const decisao = String(formData.get("decisao") ?? "");
+  if (decisao !== "APROVADO" && decisao !== "REJEITADO") {
+    return { error: "Decisão inválida.", values };
+  }
+
+  const pedido = await prisma.pedido.findUnique({ where: { id: pedidoId } });
+  if (!pedido) return { error: "Pedido não encontrado.", values };
+  if (pedido.status !== "PRE_APROVADO") {
+    return { error: "Esse pedido ainda não está pré-aprovado pela Área.", values };
+  }
+
+  const comentarios = String(formData.get("comentarios") ?? "").trim() || null;
+  if (decisao === "REJEITADO" && !comentarios) {
+    return { error: "Informe uma justificativa nas observações para rejeitar o pedido.", values };
+  }
+
+  await prisma.$transaction([
+    prisma.pedido.update({
+      where: { id: pedidoId },
+      data: { status: decisao as StatusPedido, analisadoPorId: session.sub, dataAnalise: new Date(), comentarios },
+    }),
+    prisma.pedidoEvento.create({
+      data: { pedidoId, tipo: decisao as StatusPedido, usuarioId: session.sub, comentario: comentarios },
+    }),
+  ]);
+
+  revalidatePath("/pedidos");
+}
+
+// Analista: decisão final — paga ou rejeita, depois da aprovação do Regional.
+export async function decidirAnalista(
+  pedidoId: string,
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const session = await requirePerfil(["ADMIN", "ANALISTA"]);
+  const values = echoValues(formData);
+
+  const decisao = String(formData.get("decisao") ?? "");
+  if (decisao !== "PAGO" && decisao !== "REJEITADO") {
+    return { error: "Decisão inválida.", values };
+  }
+
+  const pedido = await prisma.pedido.findUnique({ where: { id: pedidoId } });
+  if (!pedido) return { error: "Pedido não encontrado.", values };
+  if (pedido.status !== "APROVADO") {
+    return { error: "Esse pedido ainda não está aprovado pelo Regional.", values };
   }
 
   const comentarios = String(formData.get("comentarios") ?? "").trim() || null;
@@ -222,32 +288,12 @@ export async function decidirPedido(
         status: decisao as StatusPedido,
         analisadoPorId: session.sub,
         dataAnalise: new Date(),
+        dataPagamento: decisao === "PAGO" ? new Date() : null,
         comentarios,
       },
     }),
     prisma.pedidoEvento.create({
       data: { pedidoId, tipo: decisao as StatusPedido, usuarioId: session.sub, comentario: comentarios },
-    }),
-  ]);
-
-  revalidatePath("/pedidos");
-}
-
-export async function marcarComoPago(pedidoId: string, _prevState: FormState, formData: FormData): Promise<FormState> {
-  const session = await requirePerfil(["ADMIN", "ANALISTA"]);
-  const values = echoValues(formData);
-
-  const pedido = await prisma.pedido.findUnique({ where: { id: pedidoId } });
-  if (!pedido) return { error: "Pedido não encontrado.", values };
-  if (pedido.status !== "APROVADO") return { error: "Só é possível marcar como pago um pedido aprovado.", values };
-
-  await prisma.$transaction([
-    prisma.pedido.update({
-      where: { id: pedidoId },
-      data: { status: "PAGO", dataPagamento: new Date() },
-    }),
-    prisma.pedidoEvento.create({
-      data: { pedidoId, tipo: "PAGO", usuarioId: session.sub },
     }),
   ]);
 

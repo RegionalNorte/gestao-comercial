@@ -17,6 +17,10 @@ enum Perfil {
   // "donos" da unidade — Gerente de Unidade tecnicamente é o diretor, Gerente Comercial
   // o par comercial), então em todo lugar do sistema os dois recebem o mesmo tratamento.
   GERENTE_COMERCIAL
+  // Consultor externo (módulo Reembolso KM): vinculado a uma ou mais unidades via
+  // usuario_unidades, mesmo mecanismo do Gerente de Unidade; só enxerga os próprios
+  // pedidos de reembolso.
+  CONSULTOR
 }
 
 enum Cluster {
@@ -30,8 +34,9 @@ enum TipoVerba {
 }
 
 enum StatusPedido {
-  PENDENTE
-  APROVADO
+  PENDENTE // aguardando Gerente de Área
+  PRE_APROVADO // aguardando Gerente Regional
+  APROVADO // aguardando Analista (pagamento)
   REJEITADO
   PAGO
 }
@@ -59,6 +64,18 @@ enum StatusDecisao {
   REJEITADO
 }
 
+// Fluxo sequencial do Reembolso KM: cada etapa só decide o que a anterior já aprovou
+// (diferente do Planejamento, que tem 2 aprovações em paralelo). Só 3 etapas — Analista
+// não participa desse fluxo; a aprovação do Gerente Regional já é a decisão final (o
+// valor cai na conta do consultor fora do sistema, sem uma etapa própria de pagamento).
+// Rejeição em qualquer etapa encerra o pedido.
+enum StatusReembolsoKm {
+  PENDENTE // aguardando Gerente Comercial/Unidade
+  PRE_APROVADO // aguardando Gerente Regional
+  APROVADO // decisão final — Gerente Regional aprovou
+  REJEITADO
+}
+
 model Area {
   id        String        @id @default(uuid())
   nome      String        @unique
@@ -83,6 +100,7 @@ model Unidade {
   solicitacoesExtra     SolicitacaoVerbaExtra[]
   transferenciasOrigem  TransferenciaSaldo[]    @relation("TransferenciaOrigem")
   transferenciasDestino TransferenciaSaldo[]    @relation("TransferenciaDestino")
+  reembolsosKm          ReembolsoKm[]
   createdAt             DateTime                @default(now()) @map("created_at")
   updatedAt             DateTime                @updatedAt @map("updated_at")
 
@@ -115,6 +133,9 @@ model Usuario {
   email     String           @unique
   senhaHash String?          @map("senha_hash")
   perfil    Perfil
+  // Inativo bloqueia o acesso imediatamente (checado a cada request via requireSession,
+  // não só no login) — até sessões já abertas param de funcionar no próximo clique.
+  ativo     Boolean          @default(true)
   unidades  UsuarioUnidade[]
   areas     UsuarioArea[]
 
@@ -129,6 +150,8 @@ model Usuario {
   planejamentosSolicitados     Planejamento[]          @relation("PlanejamentoSolicitante")
   planejamentosDecisaoArea     Planejamento[]          @relation("PlanejamentoDecisaoArea")
   planejamentosDecisaoRegional Planejamento[]          @relation("PlanejamentoDecisaoRegional")
+  reembolsosKmSolicitados      ReembolsoKm[]           @relation("ReembolsoKmConsultor")
+  reembolsoKmEventos           ReembolsoKmEvento[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -202,7 +225,10 @@ model Meta {
 }
 
 // Pedido de verba para fornecedor/serviço, feito pelo Gerente de Unidade contra o orçado.
-// status: PENDENTE -> APROVADO/REJEITADO (só Analista decide) -> PAGO (só aqui deduz do saldo).
+// Fluxo sequencial em 3 etapas: PENDENTE -> (Gerente de Área) PRE_APROVADO/REJEITADO ->
+// (Gerente Regional) APROVADO/REJEITADO -> (Analista) PAGO/REJEITADO. Qualquer rejeição em
+// qualquer etapa é terminal. analisadoPorId/dataAnalise guardam só a última decisão — o
+// histórico completo de quem decidiu o quê em cada etapa fica em PedidoEvento.
 // fornecedorId é herdado da Meta da unidade/ciclo (definida pelo Analista) — não é escolhido
 // livremente aqui; é gravado no pedido para manter o histórico mesmo se a Meta mudar depois.
 // cicloId é derivado automaticamente de dataDesejada (o ciclo cujo período cobre essa data),
@@ -359,4 +385,79 @@ model Planejamento {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@map("planejamentos")
+}
+
+// Pedido de reembolso de KM rodado, feito pelo Consultor a partir do PDF ("Relatório de
+// Km Rodado") recebido do sistema de terceiros — colaborador, equipe, período e os
+// totais são extraídos automaticamente do arquivo na importação (ver src/lib/reembolsoKmPdf.ts).
+// Fora do orçamento/saldo por ciclo: não é vinculado a Ciclo, só à Unidade do consultor.
+// Fluxo sequencial (diferente do Planejamento, que é paralelo): Gerente Comercial/Unidade
+// pré-aprova -> Gerente Regional aprova (decisão final — Analista não participa desse
+// fluxo, o valor cai na conta do consultor fora do sistema). Qualquer rejeição encerra.
+model ReembolsoKm {
+  id          String  @id @default(uuid())
+  unidadeId   String  @map("unidade_id")
+  unidade     Unidade @relation(fields: [unidadeId], references: [id])
+  consultorId String  @map("consultor_id")
+  consultor   Usuario @relation("ReembolsoKmConsultor", fields: [consultorId], references: [id])
+
+  colaborador   String
+  equipe        String?
+  periodoInicio DateTime @map("periodo_inicio")
+  periodoFim    DateTime @map("periodo_fim")
+  totalKm       Decimal  @map("total_km") @db.Decimal(10, 3)
+  totalValor    Decimal  @map("total_valor") @db.Decimal(14, 2)
+
+  // Guardado no Postgres (bytea) em vez de disco: o deploy final é Vercel (serverless,
+  // sem disco persistente) e ainda não há storage externo configurado no projeto.
+  arquivoPdf     Bytes  @map("arquivo_pdf")
+  arquivoPdfNome String @map("arquivo_pdf_nome")
+
+  status      StatusReembolsoKm @default(PENDENTE)
+  comentarios String?
+
+  dataSolicitacao DateTime @default(now()) @map("data_solicitacao")
+
+  itens   ReembolsoKmItem[]
+  eventos ReembolsoKmEvento[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("reembolsos_km")
+}
+
+// Uma linha por "Tarefa" do relatório — guarda o detalhamento pra auditoria/conferência.
+model ReembolsoKmItem {
+  id             String      @id @default(uuid())
+  reembolsoKmId  String      @map("reembolso_km_id")
+  reembolsoKm    ReembolsoKm @relation(fields: [reembolsoKmId], references: [id], onDelete: Cascade)
+  data           DateTime
+  tarefaCodigo   String      @map("tarefa_codigo")
+  clientePartida String      @map("cliente_partida")
+  clienteChegada String      @map("cliente_chegada")
+  km             Decimal     @db.Decimal(10, 3)
+  valor          Decimal     @db.Decimal(14, 2)
+
+  // true quando a data do item já cai dentro do período de outra solicitação do mesmo
+  // consultor que não foi rejeitada — o item fica salvo para conferência, mas não entra
+  // no totalKm/totalValor nem no período do ReembolsoKm.
+  ignorado       Boolean     @default(false)
+
+  @@map("reembolso_km_itens")
+}
+
+// Histórico append-only das decisões (mesmo padrão de PedidoEvento) — necessário porque
+// são 3 etapas e cada uma precisa ficar registrada com quem decidiu e o comentário.
+model ReembolsoKmEvento {
+  id            String            @id @default(uuid())
+  reembolsoKmId String            @map("reembolso_km_id")
+  reembolsoKm   ReembolsoKm       @relation(fields: [reembolsoKmId], references: [id], onDelete: Cascade)
+  tipo          StatusReembolsoKm
+  usuarioId     String            @map("usuario_id")
+  usuario       Usuario           @relation(fields: [usuarioId], references: [id])
+  comentario    String?
+  criadoEm      DateTime          @default(now()) @map("criado_em")
+
+  @@map("reembolso_km_eventos")
 }

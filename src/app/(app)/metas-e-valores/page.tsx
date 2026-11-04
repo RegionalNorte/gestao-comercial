@@ -72,7 +72,7 @@ export default async function MetasEValoresPage({
           // lib/saldo.ts) — precisa aparecer no detalhamento pra explicar por que o saldo
           // caiu antes mesmo de qualquer pedido ser pago.
           prisma.pedido.findMany({
-            where: { cicloId: cicloSelecionado.id, status: { in: ["PENDENTE", "APROVADO"] } },
+            where: { cicloId: cicloSelecionado.id, status: { in: ["PENDENTE", "PRE_APROVADO", "APROVADO"] } },
             orderBy: { dataSolicitacao: "desc" },
           }),
           // Planejamento totalmente aprovado (Área + Regional) também reserva o valor

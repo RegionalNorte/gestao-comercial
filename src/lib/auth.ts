@@ -2,6 +2,7 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { prisma } from "./prisma";
 import type { Perfil } from "../generated/prisma";
 
 export const SESSION_COOKIE = "gestao_vm_session";
@@ -63,9 +64,19 @@ export async function getSession(): Promise<SessionPayload | null> {
   }
 }
 
+// Checa o status "ativo" no banco a cada chamada (não só no login): assim, desativar um
+// usuário bloqueia o acesso no próximo clique dele, mesmo com uma sessão/cookie ainda
+// válida — cobre todas as páginas e server actions, já que todas passam por aqui.
 export async function requireSession(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  const usuario = await prisma.usuario.findUnique({ where: { id: session.sub }, select: { ativo: true } });
+  if (!usuario || !usuario.ativo) {
+    await clearSession();
+    redirect("/login");
+  }
+
   return session;
 }
 

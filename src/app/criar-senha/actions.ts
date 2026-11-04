@@ -27,8 +27,9 @@ export async function criarSenha(
   }
 
   const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
-  // Se alguém já definiu a senha nesse meio tempo, essa janela não vale mais.
-  if (!usuario || usuario.senhaHash) {
+  // Se alguém já definiu a senha nesse meio tempo, ou o usuário foi desativado
+  // nesse meio tempo, essa janela não vale mais.
+  if (!usuario || usuario.senhaHash || !usuario.ativo) {
     await clearPendingSenhaSession();
     redirect("/login");
   }

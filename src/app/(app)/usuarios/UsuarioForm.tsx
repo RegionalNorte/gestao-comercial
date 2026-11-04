@@ -11,6 +11,7 @@ const PERFIL_OPTIONS = [
   { value: "GERENTE_AREA", label: "Gerente de Área" },
   { value: "GERENTE_UNIDADE", label: "Gerente de Unidade" },
   { value: "GERENTE_COMERCIAL", label: "Gerente Comercial" },
+  { value: "CONSULTOR", label: "Consultor" },
 ];
 
 export function UsuarioForm({
@@ -19,6 +20,8 @@ export function UsuarioForm({
   emailInicial = "",
   perfilInicial = "",
   ehEdicao = false,
+  escopoRestrito = false,
+  unidadesDisponiveis = [],
   onSuccess,
   onCancel,
 }: {
@@ -27,6 +30,8 @@ export function UsuarioForm({
   emailInicial?: string;
   perfilInicial?: string;
   ehEdicao?: boolean;
+  escopoRestrito?: boolean;
+  unidadesDisponiveis?: { id: string; nome: string }[];
   onSuccess: () => void;
   onCancel: () => void;
 }) {
@@ -79,10 +84,25 @@ export function UsuarioForm({
         />
       </div>
 
-      <div className="space-y-1.5">
-        <p className="block text-sm font-medium text-navy">Perfil</p>
-        <Select name="perfil" options={PERFIL_OPTIONS} defaultValue={valores?.perfil ?? perfilInicial} />
-      </div>
+      {escopoRestrito ? (
+        <p className="text-[0.8125rem] text-muted">Perfil: Consultor</p>
+      ) : (
+        <div className="space-y-1.5">
+          <p className="block text-sm font-medium text-navy">Perfil</p>
+          <Select name="perfil" options={PERFIL_OPTIONS} defaultValue={valores?.perfil ?? perfilInicial} />
+        </div>
+      )}
+
+      {escopoRestrito && !ehEdicao ? (
+        <div className="space-y-1.5">
+          <p className="block text-sm font-medium text-navy">Unidade</p>
+          <Select
+            name="unidadeId"
+            options={unidadesDisponiveis.map((u) => ({ value: u.id, label: u.nome }))}
+            defaultValue={valores?.unidadeId ?? (unidadesDisponiveis.length === 1 ? unidadesDisponiveis[0].id : "")}
+          />
+        </div>
+      ) : null}
 
       {!ehEdicao ? (
         <p className="text-[0.8125rem] text-muted">

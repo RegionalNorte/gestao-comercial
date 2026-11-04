@@ -20,6 +20,10 @@ export async function login(
 
   const usuario = await prisma.usuario.findUnique({ where: { email } });
 
+  if (usuario && !usuario.ativo) {
+    return { error: "Este usuário está inativo. Fale com o administrador." };
+  }
+
   // Usuário recém-criado pelo Admin, ou com a senha resetada: ainda não tem senha_hash.
   // Em vez de validar credenciais (não há o que validar), leva direto pra tela de
   // criação de senha — é assim que o fluxo "esqueci a senha" se resolve sem depender

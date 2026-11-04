@@ -16,7 +16,7 @@ export async function calcularSaldoDisponivel(unidadeId: string, cicloId: string
 
   const [pagos, saidas, entradas, extra, planejado] = await Promise.all([
     prisma.pedido.aggregate({
-      where: { unidadeId, cicloId, status: { in: ["PENDENTE", "APROVADO", "PAGO"] } },
+      where: { unidadeId, cicloId, status: { in: ["PENDENTE", "PRE_APROVADO", "APROVADO", "PAGO"] } },
       _sum: { valorBruto: true },
     }),
     prisma.transferenciaSaldo.aggregate({

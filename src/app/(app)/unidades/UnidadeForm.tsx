@@ -20,11 +20,13 @@ export function UnidadeForm({
   areas,
   gestores,
   gestoresComercial,
+  consultores,
   nomeInicial = "",
   areaIdInicial = "",
   clusterInicial = "",
   gestorIdsSelecionados = [],
   gestorComercialIdsSelecionados = [],
+  consultorIdsSelecionados = [],
   onSuccess,
   onCancel,
 }: {
@@ -32,11 +34,13 @@ export function UnidadeForm({
   areas: AreaOption[];
   gestores: GestorOption[];
   gestoresComercial: GestorOption[];
+  consultores: GestorOption[];
   nomeInicial?: string;
   areaIdInicial?: string;
   clusterInicial?: string;
   gestorIdsSelecionados?: string[];
   gestorComercialIdsSelecionados?: string[];
+  consultorIdsSelecionados?: string[];
   onSuccess: () => void;
   onCancel: () => void;
 }) {
@@ -61,6 +65,7 @@ export function UnidadeForm({
   const valores = state?.values;
   const gestorIdsAtuais = state?.gestorIds ?? gestorIdsSelecionados;
   const gestorComercialIdsAtuais = state?.gestorComercialIds ?? gestorComercialIdsSelecionados;
+  const consultorIdsAtuais = state?.consultorIds ?? consultorIdsSelecionados;
 
   return (
     <form key={formKey} action={formAction} className="w-full space-y-6" noValidate>
@@ -143,6 +148,34 @@ export function UnidadeForm({
                   className="accent-cyan"
                 />
                 {g.nome} <span className="text-muted">({g.email})</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="block text-sm font-medium text-navy">Consultor(es)</p>
+        {consultores.length === 0 ? (
+          <p className="text-[0.8125rem] text-muted">
+            Nenhum usuário com perfil &quot;Consultor&quot; cadastrado ainda. Cadastre em{" "}
+            <Link href="/usuarios" className="text-cyan-deep underline">
+              Usuários
+            </Link>
+            .
+          </p>
+        ) : (
+          <div className="space-y-1.5 rounded-md border border-border p-3">
+            {consultores.map((c) => (
+              <label key={c.id} className="flex items-center gap-2 text-[0.9375rem] text-navy">
+                <input
+                  type="checkbox"
+                  name="consultores"
+                  value={c.id}
+                  defaultChecked={consultorIdsAtuais.includes(c.id)}
+                  className="accent-cyan"
+                />
+                {c.nome} <span className="text-muted">({c.email})</span>
               </label>
             ))}
           </div>

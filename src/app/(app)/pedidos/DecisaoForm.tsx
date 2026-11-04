@@ -3,14 +3,18 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import type { FormState } from "./actions";
 
+// Reaproveitado nas 3 etapas de decisão do Pedido (pré-aprovação da Área, aprovação
+// Regional, pagamento final do Analista) — só muda o rótulo/valor do botão de aprovar.
 export function DecisaoForm({
   action,
   onSuccess,
-  somenteRejeitar = false,
+  aprovarLabel = "Aprovar",
+  aprovarValor = "APROVADO",
 }: {
   action: (prevState: FormState, formData: FormData) => Promise<FormState>;
   onSuccess: () => void;
-  somenteRejeitar?: boolean;
+  aprovarLabel?: string;
+  aprovarValor?: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, undefined);
   const wasPending = useRef(false);
@@ -47,7 +51,7 @@ export function DecisaoForm({
           className="w-full resize-none rounded-md border border-border bg-white px-3 py-2.5 text-[0.9375rem] text-navy outline-none transition-colors focus:border-cyan focus:ring-2 focus:ring-cyan/30"
         />
         <p className="text-[0.8125rem] text-muted">
-          {somenteRejeitar ? "Obrigatório: justifique o motivo da rejeição." : "Opcional para aprovar. Obrigatório para rejeitar (justifique o motivo)."}
+          Opcional para {aprovarLabel.toLowerCase()}. Obrigatório para rejeitar (justifique o motivo).
         </p>
       </div>
 
@@ -58,17 +62,15 @@ export function DecisaoForm({
       ) : null}
 
       <div className="flex items-center gap-3">
-        {somenteRejeitar ? null : (
-          <button
-            type="submit"
-            name="decisao"
-            value="APROVADO"
-            disabled={isPending}
-            className="rounded-md bg-navy px-4 py-2.5 text-[0.9375rem] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            Aprovar
-          </button>
-        )}
+        <button
+          type="submit"
+          name="decisao"
+          value={aprovarValor}
+          disabled={isPending}
+          className="rounded-md bg-navy px-4 py-2.5 text-[0.9375rem] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {aprovarLabel}
+        </button>
         <button
           type="submit"
           name="decisao"

@@ -6,7 +6,13 @@ import { requirePerfil } from "@/lib/auth";
 import { Cluster } from "@/generated/prisma";
 
 export type FormState =
-  | { error: string; values: Record<string, string>; gestorIds: string[]; gestorComercialIds?: string[] }
+  | {
+      error: string;
+      values: Record<string, string>;
+      gestorIds: string[];
+      gestorComercialIds?: string[];
+      consultorIds?: string[];
+    }
   | undefined;
 
 function parseCluster(value: FormDataEntryValue | null): Cluster | null {
@@ -71,20 +77,27 @@ export async function criarUnidade(_prevState: FormState, formData: FormData): P
   const values = echoValues(formData);
   const gestorIds = formData.getAll("gestores").map(String);
   const gestorComercialIds = formData.getAll("gestoresComercial").map(String);
-  // Gerente de Unidade e Gerente Comercial são pares (mesma função) e compartilham a
-  // mesma tabela de vínculo usuario_unidades — basta juntar os dois grupos de ids.
-  const todosGestorIds = [...gestorIds, ...gestorComercialIds];
+  const consultorIds = formData.getAll("consultores").map(String);
+  // Gerente de Unidade, Gerente Comercial e Consultor compartilham a mesma tabela de
+  // vínculo usuario_unidades — basta juntar os três grupos de ids.
+  const todosGestorIds = [...gestorIds, ...gestorComercialIds, ...consultorIds];
 
   const nome = String(formData.get("nome") ?? "").trim();
   const areaId = String(formData.get("areaId") ?? "");
   const cluster = parseCluster(formData.get("cluster"));
 
-  if (!nome) return { error: "Informe o nome da unidade.", values, gestorIds, gestorComercialIds };
-  if (!areaId) return { error: "Selecione a área.", values, gestorIds, gestorComercialIds };
+  if (!nome) return { error: "Informe o nome da unidade.", values, gestorIds, gestorComercialIds, consultorIds };
+  if (!areaId) return { error: "Selecione a área.", values, gestorIds, gestorComercialIds, consultorIds };
 
   const existente = await prisma.unidade.findFirst({ where: { nome, areaId } });
   if (existente) {
-    return { error: "Já existe uma unidade com esse nome nessa área.", values, gestorIds, gestorComercialIds };
+    return {
+      error: "Já existe uma unidade com esse nome nessa área.",
+      values,
+      gestorIds,
+      gestorComercialIds,
+      consultorIds,
+    };
   }
 
   await prisma.unidade.create({
@@ -110,18 +123,25 @@ export async function atualizarUnidade(
   const values = echoValues(formData);
   const gestorIds = formData.getAll("gestores").map(String);
   const gestorComercialIds = formData.getAll("gestoresComercial").map(String);
-  const todosGestorIds = [...gestorIds, ...gestorComercialIds];
+  const consultorIds = formData.getAll("consultores").map(String);
+  const todosGestorIds = [...gestorIds, ...gestorComercialIds, ...consultorIds];
 
   const nome = String(formData.get("nome") ?? "").trim();
   const areaId = String(formData.get("areaId") ?? "");
   const cluster = parseCluster(formData.get("cluster"));
 
-  if (!nome) return { error: "Informe o nome da unidade.", values, gestorIds, gestorComercialIds };
-  if (!areaId) return { error: "Selecione a área.", values, gestorIds, gestorComercialIds };
+  if (!nome) return { error: "Informe o nome da unidade.", values, gestorIds, gestorComercialIds, consultorIds };
+  if (!areaId) return { error: "Selecione a área.", values, gestorIds, gestorComercialIds, consultorIds };
 
   const duplicada = await prisma.unidade.findFirst({ where: { nome, areaId, NOT: { id } } });
   if (duplicada) {
-    return { error: "Já existe uma unidade com esse nome nessa área.", values, gestorIds, gestorComercialIds };
+    return {
+      error: "Já existe uma unidade com esse nome nessa área.",
+      values,
+      gestorIds,
+      gestorComercialIds,
+      consultorIds,
+    };
   }
 
   await prisma.$transaction([

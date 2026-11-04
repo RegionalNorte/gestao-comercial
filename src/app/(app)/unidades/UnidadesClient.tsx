@@ -27,6 +27,8 @@ export type UnidadeRow = {
   gestorIds: string[];
   gestorComercialNomes: string[];
   gestorComercialIds: string[];
+  consultorNomes: string[];
+  consultorIds: string[];
 };
 
 type Drawer =
@@ -43,12 +45,14 @@ export function UnidadesClient({
   gestoresArea,
   gestoresUnidade,
   gestoresComercial,
+  consultores,
 }: {
   areas: AreaData[];
   unidades: UnidadeRow[];
   gestoresArea: GestorOption[];
   gestoresUnidade: GestorOption[];
   gestoresComercial: GestorOption[];
+  consultores: GestorOption[];
 }) {
   const router = useRouter();
   const [drawer, setDrawer] = useState<Drawer>(null);
@@ -115,6 +119,7 @@ export function UnidadesClient({
                   <th className="border-b border-border px-5 py-2.5 font-medium">Cluster</th>
                   <th className="border-b border-border px-5 py-2.5 font-medium">Gerente de Unidade</th>
                   <th className="border-b border-border px-5 py-2.5 font-medium">Gerente Comercial</th>
+                  <th className="border-b border-border px-5 py-2.5 font-medium">Consultor(es)</th>
                   <th className="border-b border-border px-5 py-2.5 font-medium"></th>
                 </tr>
               </thead>
@@ -129,6 +134,9 @@ export function UnidadesClient({
                     </td>
                     <td className="px-5 py-2.5 text-navy">
                       {unidade.gestorComercialNomes.length > 0 ? unidade.gestorComercialNomes.join(", ") : "—"}
+                    </td>
+                    <td className="px-5 py-2.5 text-navy">
+                      {unidade.consultorNomes.length > 0 ? unidade.consultorNomes.join(", ") : "—"}
                     </td>
                     <td className="px-5 py-2.5 text-right">
                       <button
@@ -213,6 +221,7 @@ export function UnidadesClient({
             areas={areaOptions}
             gestores={gestoresUnidade}
             gestoresComercial={gestoresComercial}
+            consultores={consultores}
             onSuccess={handleSuccess}
             onCancel={closeDrawer}
           />
@@ -223,11 +232,13 @@ export function UnidadesClient({
             areas={areaOptions}
             gestores={gestoresUnidade}
             gestoresComercial={gestoresComercial}
+            consultores={consultores}
             nomeInicial={drawer.unidade.nome}
             areaIdInicial={drawer.unidade.areaId}
             clusterInicial={drawer.unidade.cluster ?? ""}
             gestorIdsSelecionados={drawer.unidade.gestorIds}
             gestorComercialIdsSelecionados={drawer.unidade.gestorComercialIds}
+            consultorIdsSelecionados={drawer.unidade.consultorIds}
             onSuccess={handleSuccess}
             onCancel={closeDrawer}
           />

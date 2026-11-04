@@ -76,7 +76,11 @@ function temAjuste(linha: MetaRow): boolean {
   return linha.transferenciasSaldo !== 0 || linha.verbaExtra !== 0 || linha.reservado !== 0;
 }
 
-const STATUS_RESERVADO_LABEL: Record<string, string> = { PENDENTE: "pendente", APROVADO: "aprovado, aguardando pagamento" };
+const STATUS_RESERVADO_LABEL: Record<string, string> = {
+  PENDENTE: "pendente",
+  PRE_APROVADO: "pré-aprovado, aguardando regional",
+  APROVADO: "aprovado, aguardando pagamento",
+};
 
 function estourou(linha: MetaRow): boolean {
   return linha.verbaOrcada !== null && linha.realizado > linha.verbaOrcada;

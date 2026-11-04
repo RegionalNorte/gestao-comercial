@@ -6,8 +6,7 @@ import { SlideOver } from "@/components/SlideOver";
 import { Select } from "@/components/Select";
 import { PedidoForm } from "./PedidoForm";
 import { DecisaoForm } from "./DecisaoForm";
-import { PagamentoForm } from "./PagamentoForm";
-import { criarPedido, decidirPedido, marcarComoPago } from "./actions";
+import { criarPedido, decidirArea, decidirRegional, decidirAnalista } from "./actions";
 
 export type PedidoRow = {
   id: string;
@@ -20,9 +19,9 @@ export type PedidoRow = {
   bv: number;
   taxa: number;
   valorBruto: number;
-  status: "PENDENTE" | "APROVADO" | "REJEITADO" | "PAGO";
+  status: "PENDENTE" | "PRE_APROVADO" | "APROVADO" | "REJEITADO" | "PAGO";
   eventos: {
-    tipo: "PENDENTE" | "APROVADO" | "REJEITADO" | "PAGO";
+    tipo: "PENDENTE" | "PRE_APROVADO" | "APROVADO" | "REJEITADO" | "PAGO";
     usuarioNome: string;
     dataHora: string;
     comentario: string | null;
@@ -33,6 +32,7 @@ type Drawer = { type: "novo" } | { type: "detalhe"; pedido: PedidoRow } | null;
 
 const STATUS_LABEL: Record<PedidoRow["status"], string> = {
   PENDENTE: "Pendente",
+  PRE_APROVADO: "Pré-aprovado",
   APROVADO: "Aprovado",
   REJEITADO: "Rejeitado",
   PAGO: "Pago",
@@ -40,6 +40,7 @@ const STATUS_LABEL: Record<PedidoRow["status"], string> = {
 
 const STATUS_DOT: Record<PedidoRow["status"], string> = {
   PENDENTE: "bg-muted",
+  PRE_APROVADO: "bg-cyan",
   APROVADO: "bg-cyan-deep",
   REJEITADO: "bg-error",
   PAGO: "bg-green",
@@ -61,6 +62,7 @@ function formatDateHora(iso: string): string {
 
 const EVENTO_LABEL: Record<PedidoRow["status"], string> = {
   PENDENTE: "Solicitado",
+  PRE_APROVADO: "Pré-aprovado",
   APROVADO: "Aprovado",
   REJEITADO: "Rejeitado",
   PAGO: "Marcado como pago",
@@ -68,6 +70,7 @@ const EVENTO_LABEL: Record<PedidoRow["status"], string> = {
 
 const EVENTO_DOT: Record<PedidoRow["status"], string> = {
   PENDENTE: "bg-muted",
+  PRE_APROVADO: "bg-cyan",
   APROVADO: "bg-cyan-deep",
   REJEITADO: "bg-error",
   PAGO: "bg-green",
@@ -79,8 +82,9 @@ export function PedidosClient({
   linhas,
   unidadesParaCriar,
   podeCriar,
-  podeDecidir,
-  podePagar,
+  podeDecidirArea,
+  podeDecidirRegional,
+  podeDecidirAnalista,
   podeVerFinanceiro,
 }: {
   ciclos: { id: string; nome: string }[];
@@ -95,8 +99,9 @@ export function PedidosClient({
     saldoDisponivel: number | null;
   }[];
   podeCriar: boolean;
-  podeDecidir: boolean;
-  podePagar: boolean;
+  podeDecidirArea: boolean;
+  podeDecidirRegional: boolean;
+  podeDecidirAnalista: boolean;
   podeVerFinanceiro: boolean;
 }) {
   const router = useRouter();
@@ -197,7 +202,9 @@ export function PedidosClient({
                         onClick={() => setDrawer({ type: "detalhe", pedido })}
                         className="text-cyan-deep hover:underline"
                       >
-                        {podeDecidir && (pedido.status === "PENDENTE" || pedido.status === "APROVADO")
+                        {(podeDecidirArea && pedido.status === "PENDENTE") ||
+                        (podeDecidirRegional && pedido.status === "PRE_APROVADO") ||
+                        (podeDecidirAnalista && pedido.status === "APROVADO")
                           ? "Analisar"
                           : "Ver"}
                       </button>
@@ -263,26 +270,24 @@ export function PedidosClient({
               </button>
             </div>
 
-            {podeDecidir && drawer.pedido.status === "PENDENTE" ? (
-              <DecisaoForm action={decidirPedido.bind(null, drawer.pedido.id)} onSuccess={handleSuccess} />
+            {podeDecidirArea && drawer.pedido.status === "PENDENTE" ? (
+              <DecisaoForm
+                action={decidirArea.bind(null, drawer.pedido.id)}
+                onSuccess={handleSuccess}
+                aprovarLabel="Pré-aprovar"
+                aprovarValor="PRE_APROVADO"
+              />
             ) : null}
-
-            {drawer.pedido.status === "APROVADO" ? (
-              <div className="space-y-4">
-                {podePagar ? (
-                  <PagamentoForm action={marcarComoPago.bind(null, drawer.pedido.id)} onSuccess={handleSuccess} />
-                ) : null}
-                {podeDecidir ? (
-                  <div className={podePagar ? "border-t border-border pt-4" : ""}>
-                    <p className="mb-2 text-sm font-medium text-navy">Rejeitar antes do pagamento</p>
-                    <DecisaoForm
-                      action={decidirPedido.bind(null, drawer.pedido.id)}
-                      onSuccess={handleSuccess}
-                      somenteRejeitar
-                    />
-                  </div>
-                ) : null}
-              </div>
+            {podeDecidirRegional && drawer.pedido.status === "PRE_APROVADO" ? (
+              <DecisaoForm action={decidirRegional.bind(null, drawer.pedido.id)} onSuccess={handleSuccess} />
+            ) : null}
+            {podeDecidirAnalista && drawer.pedido.status === "APROVADO" ? (
+              <DecisaoForm
+                action={decidirAnalista.bind(null, drawer.pedido.id)}
+                onSuccess={handleSuccess}
+                aprovarLabel="Pagar"
+                aprovarValor="PAGO"
+              />
             ) : null}
           </div>
         ) : null}

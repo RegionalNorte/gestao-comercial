@@ -15,6 +15,7 @@ const PERFIL_LABEL: Record<Perfil, string> = {
   GERENTE_AREA: "Gerente de Área",
   GERENTE_UNIDADE: "Gerente de Unidade",
   GERENTE_COMERCIAL: "Gerente Comercial",
+  CONSULTOR: "Consultor",
 };
 
 export function AppShell({
@@ -77,31 +78,26 @@ export function AppShell({
             if (entry.type === "group") {
               const GroupIcon = entry.icon;
               const groupActive = entry.items.some((item) => pathname.startsWith(item.href));
-              const open = collapsed || openGroups.has(entry.label);
-              return (
-                <div key={entry.label}>
-                  {!collapsed && (
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(entry.label)}
-                      className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
-                        groupActive && !open
+              const open = openGroups.has(entry.label);
+
+              // Colapsado: o cabeçalho não é clicável (não navega e não há espaço pro
+              // rótulo); os itens só aparecem num flyout ao passar o mouse, pra não
+              // empilhar tudo aberto na barra.
+              if (collapsed) {
+                return (
+                  <div key={entry.label} className="group relative">
+                    <div
+                      title={entry.label}
+                      className={`flex items-center justify-center rounded-md px-3 py-2.5 text-sm transition-colors ${
+                        groupActive
                           ? "bg-white/10 font-medium text-white"
-                          : "text-white/70 hover:bg-white/5 hover:text-white"
+                          : "text-white/70 group-hover:bg-white/5 group-hover:text-white"
                       }`}
                     >
                       <GroupIcon size="1.125rem" className="shrink-0" />
-                      <span className="flex-1 truncate text-left">{entry.label}</span>
-                      <ChevronDown
-                        size="1rem"
-                        className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                  )}
-                  {open && (
-                    <div
-                      className={`mt-0.5 space-y-0.5 ${collapsed ? "" : "border-l border-white/10 pl-3"}`}
-                    >
+                    </div>
+                    <div className="invisible absolute left-full top-0 z-50 ml-1 w-56 rounded-md bg-navy p-1 opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100">
+                      <p className="truncate px-3 py-2 text-sm font-medium text-white/60">{entry.label}</p>
                       {entry.items.map((item) => {
                         const active = pathname.startsWith(item.href);
                         const Icon = item.icon;
@@ -109,7 +105,6 @@ export function AppShell({
                           <Link
                             key={item.href}
                             href={item.href}
-                            title={collapsed ? item.label : undefined}
                             className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
                               active
                                 ? "bg-white/10 font-medium text-white"
@@ -117,7 +112,50 @@ export function AppShell({
                             }`}
                           >
                             <Icon size="1.125rem" className="shrink-0" />
-                            {!collapsed && <span className="truncate">{item.label}</span>}
+                            <span className="truncate">{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={entry.label}>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(entry.label)}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
+                      groupActive && !open
+                        ? "bg-white/10 font-medium text-white"
+                        : "text-white/70 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    <GroupIcon size="1.125rem" className="shrink-0" />
+                    <span className="flex-1 truncate text-left">{entry.label}</span>
+                    <ChevronDown
+                      size="1rem"
+                      className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {open && (
+                    <div className="mt-0.5 space-y-0.5 border-l border-white/10 pl-3">
+                      {entry.items.map((item) => {
+                        const active = pathname.startsWith(item.href);
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
+                              active
+                                ? "bg-white/10 font-medium text-white"
+                                : "text-white/70 hover:bg-white/5 hover:text-white"
+                            }`}
+                          >
+                            <Icon size="1.125rem" className="shrink-0" />
+                            <span className="truncate">{item.label}</span>
                           </Link>
                         );
                       })}

@@ -5,7 +5,7 @@ import { UnidadesClient, type AreaData, type UnidadeRow } from "./UnidadesClient
 export default async function UnidadesPage() {
   await requirePerfil(["ADMIN", "ANALISTA"]);
 
-  const [areasRaw, gestoresArea, gestoresUnidade, gestoresComercial] = await Promise.all([
+  const [areasRaw, gestoresArea, gestoresUnidade, gestoresComercial, consultores] = await Promise.all([
     prisma.area.findMany({
       orderBy: { nome: "asc" },
       include: {
@@ -36,6 +36,11 @@ export default async function UnidadesPage() {
       select: { id: true, nome: true, email: true },
       orderBy: { nome: "asc" },
     }),
+    prisma.usuario.findMany({
+      where: { perfil: "CONSULTOR" },
+      select: { id: true, nome: true, email: true },
+      orderBy: { nome: "asc" },
+    }),
   ]);
 
   const areas: AreaData[] = areasRaw.map((area) => ({
@@ -49,6 +54,7 @@ export default async function UnidadesPage() {
     area.unidades.map((unidade) => {
       const vinculosUnidade = unidade.usuarios.filter((u) => u.usuario.perfil === "GERENTE_UNIDADE");
       const vinculosComercial = unidade.usuarios.filter((u) => u.usuario.perfil === "GERENTE_COMERCIAL");
+      const vinculosConsultor = unidade.usuarios.filter((u) => u.usuario.perfil === "CONSULTOR");
       return {
         id: unidade.id,
         nome: unidade.nome,
@@ -59,6 +65,8 @@ export default async function UnidadesPage() {
         gestorIds: vinculosUnidade.map((u) => u.usuario.id),
         gestorComercialNomes: vinculosComercial.map((u) => u.usuario.nome),
         gestorComercialIds: vinculosComercial.map((u) => u.usuario.id),
+        consultorNomes: vinculosConsultor.map((u) => u.usuario.nome),
+        consultorIds: vinculosConsultor.map((u) => u.usuario.id),
       };
     }),
   );
@@ -70,6 +78,7 @@ export default async function UnidadesPage() {
       gestoresArea={gestoresArea}
       gestoresUnidade={gestoresUnidade}
       gestoresComercial={gestoresComercial}
+      consultores={consultores}
     />
   );
 }

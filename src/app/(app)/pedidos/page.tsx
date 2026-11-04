@@ -29,17 +29,14 @@ export default async function PedidosPage({
   // Gerente Comercial é par do Gerente de Unidade — mesma função dentro da unidade.
   const podeCriar =
     session.perfil === "ADMIN" || session.perfil === "GERENTE_UNIDADE" || session.perfil === "GERENTE_COMERCIAL";
-  // Fluxo: a unidade pede; Gerente de Área, Analista ou Gerente Regional aprovam ou
-  // rejeitam (Gerente de Área só das unidades da própria área — já restrito por
-  // unidadeIdsVisiveis abaixo, então nem vê pedido de outra área pra decidir). Depois de
-  // aprovado (e antes de pago) ainda dá pra rejeitar como checagem final. Marcar como
-  // pago continua exclusivo de Admin/Analista.
-  const podeDecidir =
-    session.perfil === "ADMIN" ||
-    session.perfil === "ANALISTA" ||
-    session.perfil === "GERENTE_REGIONAL" ||
-    session.perfil === "GERENTE_AREA";
-  const podePagar = session.perfil === "ADMIN" || session.perfil === "ANALISTA";
+  // Fluxo sequencial em 3 etapas: a unidade pede (PENDENTE); Gerente de Área pré-aprova
+  // ou rejeita (Gerente de Área só das unidades da própria área — já restrito por
+  // unidadeIdsVisiveis abaixo, então nem vê pedido de outra área pra decidir); Gerente
+  // Regional aprova ou rejeita a pré-aprovação; Analista paga ou rejeita a aprovação —
+  // decisão final.
+  const podeDecidirArea = session.perfil === "ADMIN" || session.perfil === "GERENTE_AREA";
+  const podeDecidirRegional = session.perfil === "ADMIN" || session.perfil === "GERENTE_REGIONAL";
+  const podeDecidirAnalista = session.perfil === "ADMIN" || session.perfil === "ANALISTA";
   // Fornecedor/BV%/Taxa%/valor bruto são controle do Analista (definido em Metas e
   // Valores) — só quem tem visibilidade financeira total vê esse detalhamento aqui.
   const podeVerFinanceiro =
@@ -168,8 +165,9 @@ export default async function PedidosPage({
       linhas={linhas}
       unidadesParaCriar={unidadesParaCriar}
       podeCriar={podeCriar}
-      podeDecidir={podeDecidir}
-      podePagar={podePagar}
+      podeDecidirArea={podeDecidirArea}
+      podeDecidirRegional={podeDecidirRegional}
+      podeDecidirAnalista={podeDecidirAnalista}
       podeVerFinanceiro={podeVerFinanceiro}
     />
   );

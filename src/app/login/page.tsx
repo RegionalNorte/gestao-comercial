@@ -14,7 +14,7 @@ export default async function LoginPage() {
           Gestão Comercial
         </h1>
         <p className="mt-3 max-w-xs text-[0.9375rem] leading-relaxed text-white/70">
-          Controle de metas, verbas e fornecedores por unidade.
+          Regional Norte
         </p>
       </div>
 
